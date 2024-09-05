@@ -134,7 +134,7 @@ export class MessageForm {
     #busyRetry;
 
     /**
-     * @param  {string} titleText
+     * @param  {string | RawMessage} titleText
      * @return {MessageForm}
      */
     title(titleText) {
@@ -143,7 +143,7 @@ export class MessageForm {
     }
 
     /**
-     * @param  {string} bodyText
+     * @param  {string | RawMessage} bodyText
      * @return {MessageForm}
      */
     body(bodyText) {
@@ -259,11 +259,20 @@ export class ModalForm {
     #busyRetry;
 
     /**
-     * @param  {string} titleText
+     * @param  {string | RawMessage} titleText
      * @return {ModalForm}
      */
     title(titleText) {
         this.#formData.title(titleText);
+        return this;
+    }
+
+    /**
+     * @param {string | RawMessage} submitButtonText
+     * @returns {ModalForm}
+     */
+    submitButton(submitButtonText) {
+        this.#formData.submitButton(submitButtonText);
         return this;
     }
 
@@ -274,7 +283,7 @@ export class ModalForm {
      * @param  {number=} defaultValueIndex
      * @return {ModalForm}
      */
-    dropdowm(label, options, callback, defaultValueIndex) {
+    dropdown(label, options, callback, defaultValueIndex) {
         this.#formData.dropdown(label, options, defaultValueIndex);
         this.#elements.push(callback);
         return this;
