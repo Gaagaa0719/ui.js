@@ -1,17 +1,22 @@
 /*! ui.js v1.0 | MIT license | https://github.com/Lapis256/ui.js/blob/main/LICENSE */
 
 //@ts-check
-import { Player } from "mojang-minecraft";
+import { Player, system } from "@minecraft/server";
 import {
     ActionFormData,
-    ModalFormData,
+    FormCancelationReason,
     MessageFormData,
-} from "mojang-minecraft-ui";
+    ModalFormData
+} from "@minecraft/server-ui";
 
 /**
  * @callback FormButtonCallback
  * @param    {Player=} player
  * @return   {Promise<void> | void}
+ */
+
+/**
+ * @typedef {import("@minecraft/server").RawMessage} RawMessage
  */
 
 export class ActionForm {
@@ -20,8 +25,14 @@ export class ActionForm {
     /** @type {FormButtonCallback[]} */
     #buttons = [];
 
+    /** @type {(player: Player, reason: FormCancelationReason) => void} */
+    #cancelCallback;
+
+    /** @type {boolean} */
+    #busyRetry;
+
     /**
-     * @param  {string} bodyText
+     * @param  {string | RawMessage} bodyText
      * @return {ActionForm}
      */
     body(bodyText) {
@@ -30,7 +41,7 @@ export class ActionForm {
     }
 
     /**
-     * @param {string} text
+     * @param {string | RawMessage} text
      * @param {FormButtonCallback} callback
      * @param {string=} iconPath
      * @return {ActionForm}
@@ -42,23 +53,71 @@ export class ActionForm {
     }
 
     /**
-     * @param  {Player} player
+     * @typedef {Object} ButtonBuilderItem
+     * @property {string | RawMessage} text
+     * @property {string=} iconPath
+     * @property {FormButtonCallback} callback
      */
-    async show(player) {
-        const { isCanceled, selection } = await this.#formData.show(player);
-        if (isCanceled) {
-            return;
+
+    /**
+     * @template T
+     * @param {T[]} items
+     * @param {(item: T) => ButtonBuilderItem} builder
+     */
+    buttons(items, builder) {
+        for (const item of items) {
+            const { text, iconPath, callback } = builder(item);
+            this.button(text, callback, iconPath);
         }
-        await this.#buttons[selection](player);
+        return this;
     }
 
     /**
-     * @param  {string} titleText
+     * @param  {string | RawMessage} titleText
      * @return {ActionForm}
      */
     title(titleText) {
         this.#formData.title(titleText);
         return this;
+    }
+
+    /**
+     * @param {(player: Player, reason: FormCancelationReason) => void} callback
+     * @returns
+     */
+    cancel(callback) {
+        this.#cancelCallback = callback;
+        return this;
+    }
+
+    /**
+     * UserBusyの際に再度showを実行するかどうか
+     * @param {boolean} retry
+     */
+    setBusyRetry(retry) {
+        this.#busyRetry = retry;
+        return this;
+    }
+
+    /**
+     * @param  {Player} player
+     */
+    async show(player) {
+        const { canceled, cancelationReason, selection } = await this.#formData.show(player);
+
+        if (canceled) {
+            if (this.#busyRetry && cancelationReason === FormCancelationReason.UserBusy) {
+                await system.waitTicks(20);
+                this.show(player);
+                return;
+            }
+            this.#cancelCallback?.(player, cancelationReason);
+            return false;
+        }
+
+        this.#buttons[selection](player);
+
+        return true;
     }
 }
 
@@ -67,6 +126,21 @@ export class MessageForm {
 
     /** @type {Map<number, FormButtonCallback>} */
     #buttons = new Map();
+
+    /** @type {(player: Player, reason: FormCancelationReason) => void} */
+    #cancelCallback;
+
+    /** @type {boolean} */
+    #busyRetry;
+
+    /**
+     * @param  {string} titleText
+     * @return {MessageForm}
+     */
+    title(titleText) {
+        this.#formData.title(titleText);
+        return this;
+    }
 
     /**
      * @param  {string} bodyText
@@ -100,23 +174,40 @@ export class MessageForm {
     }
 
     /**
-     * @param  {Player} player
+     * @param {(player: Player, reason: FormCancelationReason) => void} callback
+     * @returns
      */
-    async show(player) {
-        const { isCanceled, selection } = await this.#formData.show(player);
-        if (isCanceled) {
-            return;
-        }
-        await this.#buttons.get(selection)(player);
+    cancel(callback) {
+        this.#cancelCallback = callback;
+        return this;
     }
 
     /**
-     * @param  {string} titleText
-     * @return {MessageForm}
+     * UserBusyの際に再度showを実行するかどうか
+     * @param {boolean} retry
      */
-    title(titleText) {
-        this.#formData.title(titleText);
+    setBusyRetry(retry) {
+        this.#busyRetry = retry;
         return this;
+    }
+
+    /**
+     * @param  {Player} player
+     */
+    async show(player) {
+        const { canceled, cancelationReason, selection } = await this.#formData.show(player);
+
+        if (canceled) {
+            if (this.#busyRetry && cancelationReason === FormCancelationReason.UserBusy) {
+                await system.waitTicks(20);
+                this.show(player);
+                return;
+            }
+            this.#cancelCallback?.(player, cancelationReason);
+            return false;
+        }
+
+        await this.#buttons.get(selection)(player);
     }
 }
 
@@ -161,6 +252,21 @@ export class ModalForm {
     /** @type {ModalCallback[]} */
     #elements = [];
 
+    /** @type {(player: Player, reason: FormCancelationReason) => void} */
+    #cancelCallback;
+
+    /** @type {boolean} */
+    #busyRetry;
+
+    /**
+     * @param  {string} titleText
+     * @return {ModalForm}
+     */
+    title(titleText) {
+        this.#formData.title(titleText);
+        return this;
+    }
+
     /**
      * @param  {string} label
      * @param  {string[]} options
@@ -175,28 +281,6 @@ export class ModalForm {
     }
 
     /**
-     * @param  {string} iconPath
-     * @return {ModalForm}
-     */
-    icon(iconPath) {
-        this.#formData.icon(iconPath);
-        return this;
-    }
-
-    /**
-     * @param  {Player} player
-     */
-    async show(player) {
-        const { isCanceled, formValues } = await this.#formData.show(player);
-        if (isCanceled) {
-            return;
-        }
-        formValues.forEach(
-            async (value, i) => await this.#elements[i](value, player)
-        );
-    }
-
-    /**
      * @param  {string} label
      * @param  {number} minimumValue
      * @param  {number} maximumValue
@@ -205,21 +289,8 @@ export class ModalForm {
      * @param  {number=} defaultValue
      * @return {ModalForm}
      */
-    slider(
-        label,
-        minimumValue,
-        maximumValue,
-        valueStep,
-        callback,
-        defaultValue
-    ) {
-        this.#formData.slider(
-            label,
-            minimumValue,
-            maximumValue,
-            valueStep,
-            defaultValue
-        );
+    slider(label, minimumValue, maximumValue, valueStep, callback, defaultValue) {
+        this.#formData.slider(label, minimumValue, maximumValue, valueStep, defaultValue);
         this.#elements.push(callback);
         return this;
     }
@@ -238,15 +309,6 @@ export class ModalForm {
     }
 
     /**
-     * @param  {string} titleText
-     * @return {ModalForm}
-     */
-    title(titleText) {
-        this.#formData.title(titleText);
-        return this;
-    }
-
-    /**
      * @param  {string} label
      * @param  {ModalToggleCallback} callback
      * @param  {boolean=} defaultValue
@@ -256,5 +318,24 @@ export class ModalForm {
         this.#formData.toggle(label, defaultValue);
         this.#elements.push(callback);
         return this;
+    }
+
+    /**
+     * @param  {Player} player
+     */
+    async show(player) {
+        const { canceled, cancelationReason, formValues } = await this.#formData.show(player);
+
+        if (canceled) {
+            if (this.#busyRetry && cancelationReason === FormCancelationReason.UserBusy) {
+                await system.waitTicks(20);
+                this.show(player);
+                return;
+            }
+            this.#cancelCallback?.(player, cancelationReason);
+            return false;
+        }
+
+        formValues.forEach(async (value, i) => await this.#elements[i](value, player));
     }
 }
