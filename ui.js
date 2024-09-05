@@ -219,10 +219,28 @@ export class MessageForm {
  */
 
 /**
+ * @typedef {Object} DropdownBuilderItem
+ * @property {string | RawMessage} label
+ * @property {string[]} options
+ * @property {ModalDropdownCallback} callback
+ * @property {number} defaultValueIndex
+ */
+
+/**
  * @callback ModalDropdownCallback
  * @param    {string} selected
  * @param    {Player=} player
  * @return   {Promise<void> | void}
+ */
+
+/**
+ * @typedef {Object} SliderBuilderItem
+ * @property {string | RawMessage} label
+ * @property {number} minimumValue
+ * @property {number} maximumValue
+ * @property {number} valueStep
+ * @property {ModalSliderCallback} callback
+ * @property {number} defaultValue
  */
 
 /**
@@ -233,10 +251,25 @@ export class MessageForm {
  */
 
 /**
+ * @typedef {Object} TextFieldBuilderItem
+ * @property {string | RawMessage} label
+ * @property {string} placeholderText
+ * @property {ModalTextFieldCallback} callback
+ * @property {string} defaultValue
+ */
+
+/**
  * @callback ModalTextFieldCallback
  * @param    {string} text
  * @param    {Player=} player
  * @return   {Promise<void> | void}
+ */
+
+/**
+ * @typedef {Object} ToggleBuilderItem
+ * @property {string | RawMessage} label
+ * @property {ModalToggleCallback} callback
+ * @property {boolean} defaultValue
  */
 
 /**
@@ -277,7 +310,7 @@ export class ModalForm {
     }
 
     /**
-     * @param  {string} label
+     * @param  {string | RawMessage} label
      * @param  {string[]} options
      * @param  {ModalDropdownCallback} callback
      * @param  {number=} defaultValueIndex
@@ -290,7 +323,20 @@ export class ModalForm {
     }
 
     /**
-     * @param  {string} label
+     * @template T
+     * @param {T[]} items
+     * @param {(item: T) => DropdownBuilderItem} builder
+     */
+    dropdowns(items, builder) {
+        for (const item of items) {
+            const { label, options, callback, defaultValueIndex } = builder(item);
+            this.dropdown(label, options, callback, defaultValueIndex);
+        }
+        return this;
+    }
+
+    /**
+     * @param  {string | RawMessage} label
      * @param  {number} minimumValue
      * @param  {number} maximumValue
      * @param  {number} valueStep
@@ -305,7 +351,21 @@ export class ModalForm {
     }
 
     /**
-     * @param  {string} label
+     * @template T
+     * @param {T[]} items
+     * @param {(item: T) => SliderBuilderItem} builder
+     */
+    sliders(items, builder) {
+        for (const item of items) {
+            const { label, minimumValue, maximumValue, valueStep, callback, defaultValue } =
+                builder(item);
+            this.slider(label, minimumValue, maximumValue, valueStep, callback, defaultValue);
+        }
+        return this;
+    }
+
+    /**
+     * @param  {string | RawMessage} label
      * @param  {string} placeholderText
      * @param  {ModalTextFieldCallback} callback
      * @param  {string=} defaultValue
@@ -318,7 +378,20 @@ export class ModalForm {
     }
 
     /**
-     * @param  {string} label
+     * @template T
+     * @param {T[]} items
+     * @param {(item: T) => TextFieldBuilderItem} builder
+     */
+    textFields(items, builder) {
+        for (const item of items) {
+            const { label, placeholderText, callback, defaultValue } = builder(item);
+            this.textField(label, placeholderText, callback, defaultValue);
+        }
+        return this;
+    }
+
+    /**
+     * @param  {string | RawMessage} label
      * @param  {ModalToggleCallback} callback
      * @param  {boolean=} defaultValue
      * @return {ModalForm}
@@ -326,6 +399,19 @@ export class ModalForm {
     toggle(label, callback, defaultValue) {
         this.#formData.toggle(label, defaultValue);
         this.#elements.push(callback);
+        return this;
+    }
+
+    /**
+     * @template T
+     * @param {T[]} items
+     * @param {(item: T) => ToggleBuilderItem} builder
+     */
+    toggles(items, builder) {
+        for (const item of items) {
+            const { label, callback, defaultValue } = builder(item);
+            this.toggle(label, callback, defaultValue);
+        }
         return this;
     }
 
